@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ETC门架补光灯视觉仿真系统 (双向六车道版)</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #111;
+            color: #eee;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        #simulation-container {
+            flex: 1;
+            min-height: 350px;
+            position: relative;
+            background: #000;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        #ui-panel {
+            flex-shrink: 0;
+            background-color: #222;
+            border-top: 2px solid #444;
+            display: flex;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            padding: 12px;
+            box-sizing: border-box;
+            gap: 12px;
+            align-items: stretch;
+            scrollbar-width: thin;
+            scrollbar-color: #555 #222;
+        }
+        #ui-panel::-webkit-scrollbar {
+            height: 8px;
+        }
+        #ui-panel::-webkit-scrollbar-thumb {
+            background-color: #555;
+            border-radius: 4px;
+        }
+        .panel-section {
+            flex: 1;
+            min-width: 260px; 
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 12px 15px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-title {
+            margin-top: 0;
+            margin-bottom: 12px;
+            font-size: 14px;
+            color: #4da6ff;
+            border-bottom: 1px solid #444;
+            padding-bottom: 5px;
+        }
+        .control-group {
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+        }
+        .control-group label {
+            width: 95px;
+            font-size: 12px;
+            color: #ccc;
+        }
+        .control-group input[type="range"] {
+            flex: 1;
+            margin-right: 10px;
+        }
+        .control-group span {
+            width: 40px;
+            text-align: right;
+            font-size: 12px;
+            font-family: monospace;
+            color: #ffaa00;
+        }
+        .light-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: center;
+            font-size: 12px;
+        }
+        .light-table th {
+            color: #888;
+            font-weight: normal;
+            padding-bottom: 6px;
+            border-bottom: 1px dashed #444;
+        }
+        .light-table td {
+            padding: 4px 1px;
+        }
+        .light-table input[type="number"] {
+            width: 45px; 
+            background: #111;
+            color: #fff;
+            border: 1px solid #555;
+            border-radius: 4px;
+            padding: 3px 1px;
+            text-align: center;
+            font-family: monospace;
+        }
+        .light-table input[type="number"]:focus {
+            border-color: #4da6ff;
+            outline: none;
+        }
+        .hud-dashboard {
+            position: absolute;
+            bottom: 15px; 
+            left: 5%; 
+            display: flex;
+            gap: 12px; 
+            background: rgba(12, 15, 18, 0.9);
+            border: 1px solid #2d3138;
+            border-bottom: 2px solid #4da6ff;
+            border-radius: 8px;
+            padding: 8px 15px; 
+            z-index: 10;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.8), 0 10px 20px rgba(0,0,0,0.6);
+            backdrop-filter: blur(5px);
+        }
+        .dash-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-width: 55px; 
+        }
+        .dash-label { 
+            font-size: 10px; 
+            color: #778899; 
+            margin-bottom: 2px; 
+            letter-spacing: 1px;
+        }
+        .dash-val { 
+            font-family: 'Courier New', Courier, monospace; 
+            font-size: 16px; 
+            font-weight: bold; 
+            text-shadow: 0 0 8px currentColor; 
+        }
+        .hud-controls {
+            position: absolute;
+            bottom: 20px; 
+            right: 5%; 
+            display: flex;
+            gap: 8px; 
+            z-index: 10;
+        }
+        .hud-controls button {
+            padding: 6px 0; 
+            width: 85px; 
+            font-size: 12px; 
+            border-radius: 30px; 
+            border: 1px solid rgba(255,255,255,0.15);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5), inset 0 2px 5px rgba(255,255,255,0.2);
+            color: #fff;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            text-align: center; 
+            box-sizing: border-box;
+        }
+        .hud-controls button:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 8px 20px rgba(0,0,0,0.6), inset 0 2px 5px rgba(255,255,255,0.3); 
+        }
+        #toggleBtn { background: linear-gradient(135deg, #00b359, #008040); }
+        #stopBtn { background: linear-gradient(135deg, #4d4d4d, #262626); }
+        #recordBtn { background: linear-gradient(135deg, #ff4d4d, #cc0000); }
+        .warning-text {
+            color: #ff3333;
+            font-weight: bold;
+            display: none;
+            animation: blink 0.5s infinite;
+        }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+        .street-light-toggles {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+            background: #222;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #444;
+        }
+        .street-light-toggles label {
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #ddd;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="simulation-container">
+        <canvas id="simCanvas"></canvas>
+        
+        <div id="hud-data" class="hud-dashboard">
+            <div class="dash-item">
+                <span class="dash-label">距离 (m)</span>
+                <span class="dash-val" id="distReadout" style="color:#ffffff;">150.0</span>
+            </div>
+            <div class="dash-item">
+                <span class="dash-label">背景 (cd/m²)</span>
+                <span class="dash-val" id="actualLavgReadout" style="color:#00e5ff;">1.00</span>
+            </div>
+            <div class="dash-item">
+                <span class="dash-label">照度 (lx)</span>
+                <span class="dash-val" id="luxReadout" style="color:#ffaa00;">0.00</span>
+            </div>
+            <div class="dash-item">
+                <span class="dash-label">眩光 TI (%)</span>
+                <span class="dash-val" id="tiReadout" style="color:#ff5500;">0.0</span>
+            </div>
+            <div class="dash-item" style="border-left: 1px solid #333; padding-left: 15px; margin-left: 5px;">
+                <span class="dash-label">系统状态</span>
+                <span class="dash-val" id="safeStatus" style="color:#00ff00; font-size: 16px;">正常</span>
+                <span class="warning-text dash-val" id="glareWarning" style="color:#ff3333; display:none; font-size: 16px;">致盲警告</span>
+            </div>
+        </div>
+
+        <div id="hud-controls" class="hud-controls">
+            <button id="toggleBtn">▶ 开始</button>
+            <button id="stopBtn">⏹ 复位</button>
+            <button id="recordBtn">⏺ 导出</button>
+        </div>
+    </div>
+
+    <div id="ui-panel">
+        <!-- 1. 观察者参数 -->
+        <div class="panel-section">
+            <h3 class="panel-title">观察者参数</h3>
+            <div class="control-group">
+                <label>车速(km/h)</label>
+                <input type="number" id="speedInput" value="80" step="5" min="10" max="200" style="flex:1; background:#333; color:white; border:1px solid #555; padding:4px; border-radius:4px; text-align:center;">
+            </div>
+            <div class="control-group">
+                <label>仿真区间(m)</label>
+                <div style="flex:1; display:flex; gap: 4px; align-items:center;">
+                    <input type="number" id="startDistInput" value="150" step="10" min="50" max="1000" style="flex:1; min-width:0; background:#333; color:white; border:1px solid #555; padding:4px; border-radius:4px; text-align:center;" title="起始距离(门架前)">
+                    <span style="color:#888; font-size:12px; width:auto; text-align:center;">至</span>
+                    <input type="number" id="endDistInput" value="-50" step="10" min="-500" max="0" style="flex:1; min-width:0; background:#333; color:white; border:1px solid #555; padding:4px; border-radius:4px; text-align:center;" title="结束距离(门架后)">
+                </div>
+            </div>
+            <div class="control-group">
+                <label>驾驶车道</label>
+                <select id="driverLaneSelect" style="flex:1; background:#333; color:white; border:1px solid #555; padding:4px; border-radius:4px;">
+                    <option value="-3.75">左侧 (超车道)</option>
+                    <option value="0" selected>中间 (行车道)</option>
+                    <option value="3.75">右侧 (慢车道)</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>前方车辆(m)</label>
+                <div style="flex:1; display:flex;">
+                    <select id="leadCarSelect" style="width:65px; background:#333; color:white; border:1px solid #555; padding:4px; border-radius:4px 0 0 4px; border-right:none; font-size:12px;">
+                        <option value="true" selected>显示</option>
+                        <option value="false">隐藏</option>
+                    </select>
+                    <input type="number" id="leadCarDistInput" value="50" step="5" min="5" max="200" style="flex:1; min-width:0; background:#333; color:white; border:1px solid #555; padding:4px; border-radius:0 4px 4px 0; text-align:center;">
+                </div>
+            </div>
+            <div class="control-group">
+                <label>驾驶视高(m)</label>
+                <div style="flex:1; display:flex;">
+                    <select id="vehicleTypeSelect" style="width:70px; background:#333; color:white; border:1px solid #555; padding:4px; border-radius:4px 0 0 4px; border-right:none; font-size:12px;">
+                        <option value="1.2">轿车</option>
+                        <option value="1.5" selected>客车/SUV</option>
+                        <option value="2.5">大货车</option>
+                        <option value="custom">其他</option>
+                    </select>
+                    <input type="number" id="cameraHeightInput" value="1.5" step="0.1" min="0.8" max="4.0" style="flex:1; min-width:0; background:#333; color:white; border:1px solid #555; padding:4px; border-radius:0 4px 4px 0; text-align:center;">
+                </div>
+            </div>
+            <div class="control-group">
+                <label>前挡透射率(%)</label>
+                <input type="number" id="transmittanceInput" value="75" step="5" min="30" max="100" style="flex:1; background:#333; color:white; border:1px solid #555; padding:4px; border-radius:4px; text-align:center;">
+            </div>
+        </div>
+
+        <!-- 2. 全局环境与本车灯光 -->
+        <div class="panel-section">
+            <h3 class="panel-title">环境基础参数</h3>
+            <div class="control-group">
+                <label>基础亮度(Eavg)</label>
+                <input type="number" id="bgLuminanceInput" value="0.1" step="0.1" min="0.1" max="5.0" style="flex:1; background:#333; color:white; border:1px solid #555; padding:4px; border-radius:4px; text-align:center;">
+            </div>
+            <div class="control-group">
+                <label>路面反射系数</label>
+                <input type="number" id="roadReflectanceInput" value="0.07" step="0.01" min="0.01" max="0.30" style="flex:1; background:#333; color:white; border:1px solid #555; padding:4px; border-radius:4px; text-align:center;">
+            </div>
+            <h3 class="panel-title" style="margin-top: 10px;">本车前照灯系统</h3>
+            <div class="control-group">
+                <label>照明模式</label>
+                <select id="hlModeSelect" style="flex:1; background:#333; color:white; border:1px solid #555; padding:4px; border-radius:4px;">
+                    <option value="off">关闭</option>
+                    <option value="low">近光灯</option>
+                    <option value="high" selected>远光灯</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>前照灯高度(m)</label>
+                <input type="number" id="hlHeightInput" value="0.9" step="0.1" min="0.5" max="2.0" style="flex:1; background:#333; color:white; border:1px solid #555; padding:4px; border-radius:4px; text-align:center;">
+            </div>
+            <div class="control-group">
+                <label>发光强度(cd)</label>
+                <input type="number" id="hlIntInput" value="40000" step="1000" min="1000" max="100000" style="flex:1; background:#333; color:white; border:1px solid #555; padding:4px; border-radius:4px; text-align:center;">
+            </div>
+        </div>
+
+        <!-- 3. 右侧环境路灯系统 -->
+        <div class="panel-section">
+            <h3 class="panel-title">环境路灯系统 (抑制眩光)</h3>
+            <div class="control-group">
+                <label>路灯光强(cd)</label>
+                <input type="number" id="slIntInput" value="8000" step="500" min="1000" max="30000" style="flex:1; background:#333; color:white; border:1px solid #555; padding:4px; border-radius:4px; text-align:center;">
+            </div>
+            <div class="control-group">
+                <label>路灯高度(m)</label>
+                <input type="number" id="slHeightInput" value="10.0" step="0.5" min="5.0" max="20.0" style="flex:1; background:#333; color:white; border:1px solid #555; padding:4px; border-radius:4px; text-align:center;">
+            </div>
+            <div class="control-group">
+                <label>首灯距门架(m)</label>
+                <input type="number" id="slFirstDistInput" value="10" step="5" min="0" max="100" style="flex:1; background:#333; color:white; border:1px solid #555; padding:4px; border-radius:4px; text-align:center;">
+            </div>
+            <div class="control-group">
+                <label>路灯间距(m)</label>
+                <input type="number" id="slSpacingInput" value="10" step="5" min="5" max="50" style="flex:1; background:#333; color:white; border:1px solid #555; padding:4px; border-radius:4px; text-align:center;">
+            </div>
+            <div class="street-light-toggles" id="slToggles">
+                <!-- 动态生成 -->
+            </div>
+        </div>
+
+        <!-- 4. 对向交通系统 (模拟防眩板) -->
+        <div class="panel-section" style="background: #2a332a;">
+            <h3 class="panel-title" style="color: #66cc66;">对向交通系统 (防眩模拟)</h3>
+            <div class="control-group">
+                <label style="color: #aaa;">对向来车</label>
+                <select id="oncomingActiveSelect" style="flex:1; background:#222; color:white; border:1px solid #4a4; padding:4px; border-radius:4px;">
+                    <option value="true">开启来车</option>
+                    <option value="false" selected>无对向车辆</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label style="color: #aaa;" title="起步物理坐标，门架为0">出现位置(m)</label>
+                <input type="number" id="oncomingDistInput" value="50" step="10" min="-1000" max="1000" style="flex:1; background:#222; color:white; border:1px solid #555; padding:4px; border-radius:4px; text-align:center;">
+            </div>
+            <div class="control-group">
+                <label style="color: #aaa;">对向车速(km/h)</label>
+                <input type="number" id="oncomingSpeedInput" value="80" step="5" min="10" max="200" style="flex:1; background:#222; color:white; border:1px solid #555; padding:4px; border-radius:4px; text-align:center;">
+            </div>
+            <div class="control-group">
+                <label style="color: #aaa;">对向车型</label>
+                <select id="oncomingTypeSelect" style="flex:1; background:#222; color:white; border:1px solid #555; padding:4px; border-radius:4px;">
+                    <option value="car" selected>轿车 (灯高0.7m)</option>
+                    <option value="suv">客车/SUV (灯高0.9m)</option>
+                    <option value="truck">大货车 (灯高1.2m)</option>
+                </select>
+            </div>
+            <div style="display:flex; gap:5px;">
+                <div class="control-group" style="flex:1; margin-bottom:8px;">
+                    <label style="color: #aaa; width:60px;">对向灯光</label>
+                    <select id="oncomingHlModeSelect" style="flex:1; min-width:0; background:#222; color:white; border:1px solid #555; padding:4px; border-radius:4px; color: #ffaa00; font-size:12px;">
+                        <option value="low">近光灯</option>
+                        <option value="high" selected>远光灯</option>
+                    </select>
+                </div>
+                <div class="control-group" style="flex:1; margin-bottom:8px;">
+                    <label style="color: #aaa; width:50px;">光强(cd)</label>
+                    <input type="number" id="oncomingHlIntInput" value="40000" step="1000" min="1000" max="150000" style="flex:1; min-width:0; background:#222; color:white; border:1px solid #555; padding:4px; border-radius:4px; text-align:center;">
+                </div>
+            </div>
+            <div style="display:flex; gap:5px;">
+                <div class="control-group" style="flex:1; margin-bottom:0;">
+                    <label style="color: #aaa; width:60px;">板高度(m)</label>
+                    <input type="number" id="barrierHeightInput" value="1.6" step="0.1" min="0.5" max="3.0" style="flex:1; background:#222; color:white; border:1px solid #555; padding:4px; border-radius:4px; text-align:center;">
+                </div>
+                <div class="control-group" style="flex:1; margin-bottom:0;">
+                    <label style="color: #aaa; width:60px;">板间距(m)</label>
+                    <input type="number" id="barrierSpacingInput" value="2.0" step="0.5" min="0.5" max="10.0" style="flex:1; background:#222; color:white; border:1px solid #555; padding:4px; border-radius:4px; text-align:center;">
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. 补光灯参数 -->
+        <div class="panel-section" style="flex: 1.5; min-width: 380px;">
+            <h3 class="panel-title">门架补光阵列参数</h3>
+            <div style="display:flex; gap: 10px;">
+                <div class="control-group" style="flex:1;">
+                    <label style="width:auto; margin-right:5px;">发光模式</label>
+                    <select id="lightMode" style="flex:1; background:#333; color:white; border:1px solid #555; padding:4px; border-radius:4px;">
+                        <option value="continuous">常亮模式</option>
+                        <option value="strobe" selected>频闪模式 (符合国标)</option>
+                    </select>
+                </div>
+                <div class="control-group" id="strobeParamsGroup" style="flex:1;">
+                    <label style="width:auto; margin-right:5px;">频闪参数</label>
+                    <div style="flex:1; display:flex; gap:2px; align-items:center;">
+                        <input type="number" id="strobeFreqInput" value="100" step="5" style="width:40px; background:#333; color:white; border:1px solid #555; padding:4px 2px; border-radius:4px; text-align:center;" title="频率(Hz)">
+                        <span style="width:auto; color:#888; margin:0;">Hz</span>
+                        <input type="number" id="strobeDutyInput" value="20" step="1" style="width:40px; background:#333; color:white; border:1px solid #555; padding:4px 2px; border-radius:4px; text-align:center;" title="占空比(%)">
+                        <span style="width:auto; color:#888; margin:0;">%</span>
+                    </div>
+                </div>
+            </div>
+            <div id="lightControls">
+                <!-- 动态生成 -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let width, height, centerX, centerY;
+        function resize() {
+            width = canvas.clientWidth;
+            height = canvas.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+            centerX = width / 2;
+            centerY = height / 2;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        let state = {
+            isRunning: false,
+            isRecording: false, 
+            startDistance: 150,
+            endDistance: -50,
+            distance: 150,
+            speedKmh: 80,       
+            driverX: 0,         
+            showLeadCar: true,
+            leadCarDist: 50, 
+            L_avg_base: 0.1,  
+            actual_L_avg: 0.1, 
+            roadReflectance: 0.07, 
+            tiThreshold: 15, 
+            mode: 'strobe', 
+            strobeFreq: 100, 
+            strobeDuty: 20,  
+            strobeActive: true,
+            currentPerceivedIntensityRatio: 1.0, 
+            eyeAdaptation: 0, 
+            cameraHeight: 1.5, 
+            gantryHeight: 6.5, 
+            laneWidth: 3.75,
+            windshieldTransmittance: 0.75,
+            headlights: {
+                mode: 'high',   
+                height: 0.9,
+                intensity: 40000
+            },
+            oncoming: {
+                active: false, 
+                startZ: 50,     
+                z: 50,           
+                speedKmh: 80,    
+                type: 'car',      
+                hlMode: 'high',     
+                hlIntensity: 40000, 
+                x: -9.0,            
+                barrierX: -6.375,   
+                barrierHeight: 1.6,
+                barrierSpacing: 2.0 
+            },
+            lights: [
+                { id: 'left', name: '左侧', x: -3.75, offset: 0, on: true, intensity: 12000, aimDist: 24, spread: 5.0 },
+                { id: 'center', name: '中间', x: 0, offset: 0, on: true, intensity: 12000, aimDist: 24, spread: 5.0 },
+                { id: 'right', name: '右侧', x: 3.75, offset: 0, on: true, intensity: 12000, aimDist: 24, spread: 5.0 }
+            ],
+            streetLights: {
+                intensity: 8000, 
+                firstDist: 10,   
+                spacing: 10,     
+                height: 10.0,    
+                lamps: [ { id: 0, on: false }, { id: 1, on: false }, { id: 2, on: false } ]
+            }
+        };
+
+        const focalLength = 300; 
+
+        document.getElementById('speedInput').addEventListener('input', (e) => state.speedKmh = Math.max(parseFloat(e.target.value) || 0, 1));
+        
+        document.getElementById('startDistInput').addEventListener('input', (e) => {
+            state.startDistance = Math.max(parseFloat(e.target.value) || 50, 10);
+            if (!state.isRunning) {
+                state.distance = state.startDistance;
+            }
+        });
+        
+        document.getElementById('endDistInput').addEventListener('input', (e) => {
+            state.endDistance = Math.min(parseFloat(e.target.value) || -50, 0);
+        });
+
+        document.getElementById('driverLaneSelect').addEventListener('change', (e) => state.driverX = parseFloat(e.target.value));
+        
+        const leadCarSelect = document.getElementById('leadCarSelect');
+        const leadCarDistInput = document.getElementById('leadCarDistInput');
+        leadCarSelect.addEventListener('change', (e) => {
+            state.showLeadCar = (e.target.value === 'true');
+            leadCarDistInput.disabled = !state.showLeadCar;
+            leadCarDistInput.style.opacity = state.showLeadCar ? '1' : '0.4';
+        });
+        leadCarDistInput.addEventListener('input', (e) => state.leadCarDist = Math.max(parseFloat(e.target.value) || 50, 5));
+        
+        const vehicleTypeSelect = document.getElementById('vehicleTypeSelect');
+        const cameraHeightInput = document.getElementById('cameraHeightInput');
+        const hlHeightInput = document.getElementById('hlHeightInput'); 
+        
+        vehicleTypeSelect.addEventListener('change', (e) => {
+            if (e.target.value !== 'custom') {
+                cameraHeightInput.value = e.target.value;
+                state.cameraHeight = parseFloat(e.target.value);
+                let hlHeight = 0.9; 
+                if (e.target.value === '1.2') hlHeight = 0.7; 
+                else if (e.target.value === '2.5') hlHeight = 1.2; 
+                hlHeightInput.value = hlHeight;
+                state.headlights.height = hlHeight;
+            }
+        });
+        
+        cameraHeightInput.addEventListener('input', (e) => {
+            state.cameraHeight = Math.max(parseFloat(e.target.value) || 1.5, 0.5);
+            vehicleTypeSelect.value = 'custom';
+        });
+        
+        document.getElementById('transmittanceInput').addEventListener('input', (e) => state.windshieldTransmittance = Math.max(30, Math.min(100, parseFloat(e.target.value) || 75)) / 100);
+
+        const hlModeSelect = document.getElementById('hlModeSelect');
+        const hlIntInput = document.getElementById('hlIntInput');
+        hlModeSelect.addEventListener('change', (e) => {
+            state.headlights.mode = e.target.value;
+            if (state.headlights.mode === 'low') { hlIntInput.value = 10000; state.headlights.intensity = 10000; }
+            else if (state.headlights.mode === 'high') { hlIntInput.value = 40000; state.headlights.intensity = 40000; }
+        });
+        hlHeightInput.addEventListener('input', (e) => state.headlights.height = Math.max(parseFloat(e.target.value) || 0.9, 0.2));
+        hlIntInput.addEventListener('input', (e) => state.headlights.intensity = Math.max(parseFloat(e.target.value) || 10000, 0));
+        document.getElementById('bgLuminanceInput').addEventListener('input', (e) => state.L_avg_base = Math.max(parseFloat(e.target.value)||1.0, 0.01));
+        document.getElementById('roadReflectanceInput').addEventListener('input', (e) => state.roadReflectance = Math.max(parseFloat(e.target.value) || 0.07, 0.01));
+
+        document.getElementById('slIntInput').addEventListener('input', (e) => state.streetLights.intensity = parseFloat(e.target.value) || 8000);
+        document.getElementById('slHeightInput').addEventListener('input', (e) => state.streetLights.height = parseFloat(e.target.value) || 10.0);
+
+        function renderStreetLightToggles() {
+            const container = document.getElementById('slToggles');
+            if (!container) return;
+            let html = '';
+            state.streetLights.lamps.forEach((lamp, idx) => {
+                const zDist = state.streetLights.firstDist + idx * state.streetLights.spacing;
+                html += `
+                    <label>
+                        <input type="checkbox" id="sl_on_${idx}" ${lamp.on ? 'checked' : ''} style="transform:scale(1.2); margin-bottom:5px;">
+                        <span>前${zDist}m</span>
+                    </label>
+                `;
+            });
+            container.innerHTML = html;
+            state.streetLights.lamps.forEach((lamp, idx) => {
+                document.getElementById(`sl_on_${idx}`).addEventListener('change', (e) => lamp.on = e.target.checked);
+            });
+        }
+
+        document.getElementById('slFirstDistInput').addEventListener('input', (e) => {
+            state.streetLights.firstDist = parseFloat(e.target.value) || 10;
+            renderStreetLightToggles();
+        });
+        document.getElementById('slSpacingInput').addEventListener('input', (e) => {
+            state.streetLights.spacing = parseFloat(e.target.value) || 10;
+            renderStreetLightToggles();
+        });
+        renderStreetLightToggles();
+
+        document.getElementById('oncomingActiveSelect').addEventListener('change', (e) => {
+            state.oncoming.active = (e.target.value === 'true');
+            if (state.oncoming.active && !state.isRunning) state.oncoming.z = state.oncoming.startZ; 
+        });
+        document.getElementById('oncomingDistInput').addEventListener('input', (e) => {
+            state.oncoming.startZ = parseFloat(e.target.value) || 50;
+            if (!state.isRunning) state.oncoming.z = state.oncoming.startZ;
+        });
+        document.getElementById('oncomingSpeedInput').addEventListener('input', (e) => {
+            state.oncoming.speedKmh = Math.max(parseFloat(e.target.value) || 0, 1);
+        });
+
+        function updateOncomingIntensity() {
+            let baseInt = 10000;
+            if (state.oncoming.hlMode === 'high') {
+                if (state.oncoming.type === 'car') baseInt = 40000;
+                else if (state.oncoming.type === 'suv') baseInt = 50000;
+                else if (state.oncoming.type === 'truck') baseInt = 60000;
+            } else {
+                if (state.oncoming.type === 'car') baseInt = 10000;
+                else if (state.oncoming.type === 'suv') baseInt = 12000;
+                else if (state.oncoming.type === 'truck') baseInt = 15000;
+            }
+            state.oncoming.hlIntensity = baseInt;
+            document.getElementById('oncomingHlIntInput').value = baseInt;
+        }
+
+        document.getElementById('oncomingTypeSelect').addEventListener('change', (e) => {
+            state.oncoming.type = e.target.value;
+            updateOncomingIntensity();
+        });
+        document.getElementById('oncomingHlModeSelect').addEventListener('change', (e) => {
+            state.oncoming.hlMode = e.target.value;
+            updateOncomingIntensity();
+        });
+        document.getElementById('oncomingHlIntInput').addEventListener('input', (e) => {
+            state.oncoming.hlIntensity = Math.max(parseFloat(e.target.value) || 0, 0);
+        });
+
+        document.getElementById('barrierHeightInput').addEventListener('input', (e) => state.oncoming.barrierHeight = Math.max(parseFloat(e.target.value) || 1.6, 0.5));
+        document.getElementById('barrierSpacingInput').addEventListener('input', (e) => state.oncoming.barrierSpacing = Math.max(parseFloat(e.target.value) || 2.0, 0.5));
+
+        const lightModeSelect = document.getElementById('lightMode');
+        const strobeFreqInput = document.getElementById('strobeFreqInput');
+        const strobeDutyInput = document.getElementById('strobeDutyInput');
+        lightModeSelect.addEventListener('change', (e) => {
+            state.mode = e.target.value;
+            const isStrobe = state.mode === 'strobe';
+            strobeFreqInput.disabled = !isStrobe; strobeDutyInput.disabled = !isStrobe;
+            strobeFreqInput.style.opacity = isStrobe ? '1' : '0.4'; strobeDutyInput.style.opacity = isStrobe ? '1' : '0.4';
+        });
+        strobeFreqInput.addEventListener('input', (e) => state.strobeFreq = Math.max(parseFloat(e.target.value) || 100, 1));
+        strobeDutyInput.addEventListener('input', (e) => state.strobeDuty = Math.max(Math.min(parseFloat(e.target.value) || 20, 100), 1));
+
+        const lightControlsContainer = document.getElementById('lightControls');
+        let tableHTML = `<table class="light-table"><tr><th>位置</th><th>启用</th><th>偏移(m)</th><th>峰值光强(cd)</th><th>瞄准(m)</th><th>角度(°)</th><th>发散角(°)</th></tr>`;
+        const initEquipY = state.gantryHeight - 1.0;
+        state.lights.forEach((light) => {
+            const initAngle = Math.atan2(initEquipY, light.aimDist) * (180 / Math.PI);
+            tableHTML += `
+                <tr>
+                    <td style="color:#ddd;">${light.name}</td>
+                    <td><input type="checkbox" id="on_${light.id}" ${light.on ? 'checked' : ''} style="cursor:pointer; transform:scale(1.1);"></td>
+                    <td><input type="number" id="off_${light.id}" min="-3.0" max="3.0" step="0.1" value="${light.offset}"></td>
+                    <td><input type="number" id="int_${light.id}" min="1000" max="100000" step="500" value="${light.intensity}"></td>
+                    <td><input type="number" id="aim_${light.id}" min="10" max="150" step="1" value="${light.aimDist}"></td>
+                    <td><input type="number" id="ang_${light.id}" min="1" max="89" step="0.5" value="${initAngle.toFixed(1)}"></td>
+                    <td><input type="number" id="spr_${light.id}" min="1" max="30" step="0.5" value="${light.spread.toFixed(1)}"></td>
+                </tr>
+            `;
+        });
+        tableHTML += `</table>`;
+        lightControlsContainer.innerHTML = tableHTML;
+
+        state.lights.forEach((light) => {
+            document.getElementById(`on_${light.id}`).addEventListener('change', (e) => light.on = e.target.checked);
+            document.getElementById(`off_${light.id}`).addEventListener('input', (e) => light.offset = parseFloat(e.target.value) || 0);
+            document.getElementById(`int_${light.id}`).addEventListener('input', (e) => light.intensity = parseFloat(e.target.value) || 0);
+            document.getElementById(`aim_${light.id}`).addEventListener('input', (e) => {
+                const dist = parseFloat(e.target.value); if (isNaN(dist) || dist <= 0) return;
+                light.aimDist = dist;
+                document.getElementById(`ang_${light.id}`).value = (Math.atan2(state.gantryHeight-1.0, dist) * (180 / Math.PI)).toFixed(1);
+            });
+            document.getElementById(`ang_${light.id}`).addEventListener('input', (e) => {
+                const angle = parseFloat(e.target.value); if (isNaN(angle) || angle <= 0 || angle >= 90) return;
+                const dist = (state.gantryHeight-1.0) / Math.tan(angle * (Math.PI / 180));
+                light.aimDist = dist;
+                document.getElementById(`aim_${light.id}`).value = dist.toFixed(1);
+            });
+            document.getElementById(`spr_${light.id}`).addEventListener('input', (e) => light.spread = Math.max(parseFloat(e.target.value) || 5.0, 1.0));
+        });
+
+        const toggleBtn = document.getElementById('toggleBtn');
+        function updateToggleBtn() {
+            toggleBtn.innerText = state.isRunning ? '⏸ 暂停' : '▶ 开始';
+            toggleBtn.style.background = state.isRunning ? 'linear-gradient(135deg, #ffaa00, #cc8800)' : 'linear-gradient(135deg, #00b359, #008040)';
+        }
+        toggleBtn.addEventListener('click', () => { 
+            if (!state.isRunning && state.distance <= state.endDistance) {
+                state.distance = state.startDistance; 
+                state.eyeAdaptation = 0; 
+                state.oncoming.z = state.oncoming.startZ; 
+            }
+            state.isRunning = !state.isRunning; 
+            updateToggleBtn(); 
+        });
+        document.getElementById('stopBtn').addEventListener('click', () => {
+            state.isRunning = false; 
+            state.distance = state.startDistance; 
+            state.eyeAdaptation = 0; 
+            state.oncoming.z = state.oncoming.startZ; 
+            updateToggleBtn();
+        });
+
+        function project(x, y, z) {
+            if (z < 0.1) z = 0.1;
+            const scale = focalLength / z;
+            return { x: centerX + (x - state.driverX) * scale, y: centerY - (y - state.cameraHeight) * scale, scale: scale };
+        }
+
+        let lastTime = performance.now();
+        let strobeTimer = 0;
+
+        function drawLoop(currentTime) {
+            const dt = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+
+            if (state.isRunning) {
+                state.distance -= (state.speedKmh / 3.6) * dt;
+                
+                if (state.oncoming.active) {
+                    state.oncoming.z += (state.oncoming.speedKmh / 3.6) * dt;
+                }
+
+                if (state.distance <= state.endDistance) {
+                    state.distance = state.endDistance; state.isRunning = false; updateToggleBtn();
+                }
+            }
+
+            if (state.mode === 'strobe') {
+                if (state.strobeFreq >= 60) {
+                    state.strobeActive = true; state.currentPerceivedIntensityRatio = state.strobeDuty / 100.0;
+                } else {
+                    const period = 1.0 / state.strobeFreq; const onTime = period * (state.strobeDuty / 100.0);
+                    if (state.isRunning) strobeTimer += dt;
+                    if (strobeTimer >= period) strobeTimer %= period;
+                    state.strobeActive = (strobeTimer < onTime);
+                    state.currentPerceivedIntensityRatio = state.strobeActive ? 1.0 : 0.0;
+                }
+            } else {
+                state.strobeActive = true; state.currentPerceivedIntensityRatio = 1.0;
+            }
+
+            let calculatedLavg = state.L_avg_base;
+            const gaze_dz = Math.max(30, Math.min(150, (state.speedKmh / 3.6) * 2.5)); 
+            const gazeZ_world = state.distance - gaze_dz; 
+
+            if (state.headlights.mode !== 'off') {
+                const dy = state.headlights.height; const distSq = dy*dy + gaze_dz*gaze_dz; 
+                let effectiveI = state.headlights.intensity;
+                if (state.headlights.mode === 'low' && gaze_dz > 45) effectiveI *= Math.pow(45 / gaze_dz, 4.0); 
+                calculatedLavg += (effectiveI / distSq) * (state.roadReflectance * 0.3);
+            }
+            
+            const slX = state.laneWidth * 1.5 + 1.2 + 1.0; 
+            state.streetLights.lamps.forEach((lamp, idx) => {
+                if (lamp.on) {
+                    const slZ_world = state.streetLights.firstDist + idx * state.streetLights.spacing; 
+                    const dz = gazeZ_world - slZ_world; 
+                    const dy = state.streetLights.height;
+                    const dx = slX - state.driverX;
+                    const distSq = dx*dx + dy*dy + dz*dz;
+                    const E_h = state.streetLights.intensity * dy / Math.pow(distSq, 1.5);
+                    calculatedLavg += E_h * (state.roadReflectance * 3.0);
+                }
+            });
+
+            state.actual_L_avg = Math.max(calculatedLavg * state.windshieldTransmittance, 0.001); 
+
+            ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, width, height);
+            const renderDist = Math.max(state.startDistance, 250); 
+            const horizonY = centerY + state.cameraHeight * (focalLength/renderDist); 
+
+            const halfRoad = state.laneWidth * 1.5; 
+            const barrierX = state.oncoming.barrierX; 
+            const oppRoadLeft = -18.375; 
+            const oppRoadRight = -7.125;
+            const railOffset = halfRoad + 1.2; 
+            
+            const nearZ = 2.0; 
+
+            // 对向路面
+            ctx.fillStyle = '#161819'; ctx.beginPath();
+            ctx.moveTo(project(oppRoadLeft, 0, nearZ).x, project(oppRoadLeft, 0, nearZ).y); 
+            ctx.lineTo(project(oppRoadLeft, 0, renderDist).x, project(oppRoadLeft, 0, renderDist).y); 
+            ctx.lineTo(project(oppRoadRight, 0, renderDist).x, project(oppRoadRight, 0, renderDist).y); 
+            ctx.lineTo(project(oppRoadRight, 0, nearZ).x, project(oppRoadRight, 0, nearZ).y); ctx.fill();
+
+            // 中央绿化带底座填充
+            ctx.fillStyle = '#111311'; ctx.beginPath();
+            ctx.moveTo(project(oppRoadRight, 0, nearZ).x, project(oppRoadRight, 0, nearZ).y); 
+            ctx.lineTo(project(oppRoadRight, 0, renderDist).x, project(oppRoadRight, 0, renderDist).y); 
+            ctx.lineTo(project(-halfRoad, 0, renderDist).x, project(-halfRoad, 0, renderDist).y); 
+            ctx.lineTo(project(-halfRoad, 0, nearZ).x, project(-halfRoad, 0, nearZ).y); ctx.fill();
+
+            // 本向路面
+            ctx.fillStyle = '#1a1c1d'; ctx.beginPath();
+            ctx.moveTo(project(-halfRoad, 0, nearZ).x, project(-halfRoad, 0, nearZ).y); 
+            ctx.lineTo(project(-halfRoad, 0, renderDist).x, project(-halfRoad, 0, renderDist).y); 
+            ctx.lineTo(project(halfRoad, 0, renderDist).x, project(halfRoad, 0, renderDist).y); 
+            ctx.lineTo(project(halfRoad, 0, nearZ).x, project(halfRoad, 0, nearZ).y); ctx.fill();
+
+            // 各种车道实线
+            ctx.strokeStyle = '#eeeeee'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(project(halfRoad, 0, nearZ).x, project(halfRoad, 0, nearZ).y); ctx.lineTo(project(halfRoad, 0, renderDist).x, project(halfRoad, 0, renderDist).y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(project(-halfRoad, 0, nearZ).x, project(-halfRoad, 0, nearZ).y); ctx.lineTo(project(-halfRoad, 0, renderDist).x, project(-halfRoad, 0, renderDist).y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(project(oppRoadRight, 0, nearZ).x, project(oppRoadRight, 0, nearZ).y); ctx.lineTo(project(oppRoadRight, 0, renderDist).x, project(oppRoadRight, 0, renderDist).y); ctx.stroke();
+
+            const dashOffset = (state.startDistance - state.distance) % 10;
+            ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 2;
+            [-1.875, 1.875].forEach(lx => {
+                ctx.beginPath();
+                for (let z = renderDist + 10; z > 0; z -= 10) {
+                    const drawZ = z - dashOffset;
+                    if (drawZ <= nearZ) continue; 
+                    const p1 = project(lx, 0, drawZ); const p2 = project(lx, 0, Math.max(nearZ, drawZ - 5));
+                    ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+                }
+                ctx.stroke();
+            });
+            [-10.875, -14.625].forEach(lx => {
+                ctx.beginPath();
+                for (let z = renderDist + 10; z > 0; z -= 10) {
+                    const drawZ = z - dashOffset;
+                    if (drawZ <= nearZ) continue;
+                    const p1 = project(lx, 0, drawZ); const p2 = project(lx, 0, Math.max(nearZ, drawZ - 5));
+                    ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+                }
+                ctx.stroke();
+            });
+
+            // === 渲染本车光束 ===
+            if (state.headlights.mode !== 'off') {
+                const drawBeamSpot = (carDz, offsetX, w, h, color, intensity) => {
+                    if (carDz <= nearZ || carDz > renderDist) return;
+                    const pCenter = project(state.driverX + offsetX, 0, carDz);
+                    const rx = w * pCenter.scale; const ry = h * pCenter.scale * Math.max(0.02, (state.cameraHeight / carDz)); 
+                    if (rx <= 0 || ry <= 0) return;
+                    ctx.save(); ctx.translate(pCenter.x, pCenter.y); ctx.scale(1, ry / rx); 
+                    ctx.globalCompositeOperation = 'screen';
+                    const grd = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+                    grd.addColorStop(0, `rgba(${color}, ${intensity})`); grd.addColorStop(1, `rgba(${color}, 0)`);
+                    ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(0, 0, rx, 0, Math.PI*2); ctx.fill();
+                    ctx.restore();
+                };
+                const isHigh = state.headlights.mode === 'high';
+                const color = isHigh ? '230, 245, 255' : '255, 230, 180'; 
+                const alphaCore = isHigh ? 0.6 : 0.45; const alphaSpill = isHigh ? 0.25 : 0.2;
+                drawBeamSpot(isHigh ? 65 : 30, -0.8, isHigh ? 12 : 14, isHigh ? 80 : 40, color, alphaCore);
+                drawBeamSpot(isHigh ? 25 : 15, -0.8, isHigh ? 20 : 22, isHigh ? 30 : 20, color, alphaSpill);
+                drawBeamSpot(isHigh ? 65 : 30, 0.8, isHigh ? 12 : 14, isHigh ? 80 : 40, color, alphaCore);
+                drawBeamSpot(isHigh ? 25 : 15, 0.8, isHigh ? 20 : 22, isHigh ? 30 : 20, color, alphaSpill);
+            }
+
+            // === 渲染对向车光束投影 (地面铺射光晕) ===
+            if (state.oncoming.active) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(project(oppRoadLeft, 0, nearZ).x, project(oppRoadLeft, 0, nearZ).y);
+                ctx.lineTo(project(oppRoadLeft, 0, renderDist).x, project(oppRoadLeft, 0, renderDist).y);
+                ctx.lineTo(project(barrierX, 0, renderDist).x, project(barrierX, 0, renderDist).y);
+                ctx.lineTo(project(barrierX, 0, nearZ).x, project(barrierX, 0, nearZ).y);
+                ctx.clip(); 
+                
+                ctx.globalCompositeOperation = 'screen';
+
+                const drawOppBeamTrapezoid = (offsetX, throwDist, spreadWidth, color, intensity) => {
+                    const startDz = state.distance - state.oncoming.z;
+                    if (startDz <= nearZ || startDz > renderDist) return;
+
+                    let endDz = startDz - throwDist;
+                    let actualSpread = spreadWidth;
+
+                    if (endDz < nearZ) {
+                        const fraction = (startDz - nearZ) / throwDist;
+                        endDz = nearZ;
+                        actualSpread = spreadWidth * fraction;
+                    }
+
+                    const pStart = project(state.oncoming.x + offsetX, 0, startDz);
+                    const pEndLeft = project(state.oncoming.x + offsetX - actualSpread/2, 0, endDz);
+                    const pEndRight = project(state.oncoming.x + offsetX + actualSpread/2, 0, endDz);
+
+                    const grd = ctx.createLinearGradient(pStart.x, pStart.y, (pEndLeft.x + pEndRight.x)/2, (pEndLeft.y + pEndRight.y)/2);
+                    grd.addColorStop(0, `rgba(${color}, ${intensity})`);
+                    grd.addColorStop(1, `rgba(${color}, 0)`);
+
+                    ctx.fillStyle = grd;
+                    ctx.beginPath();
+                    ctx.moveTo(pStart.x, pStart.y);
+                    ctx.lineTo(pEndLeft.x, pEndLeft.y);
+                    ctx.lineTo(pEndRight.x, pEndRight.y);
+                    ctx.closePath();
+                    ctx.fill();
+                };
+                
+                const isOppHigh = state.oncoming.hlMode === 'high';
+                const oppColor = isOppHigh ? '230, 245, 255' : '255, 230, 180'; 
+                const oppIntensity = isOppHigh ? 0.7 : 0.5;
+                const throwD = isOppHigh ? 150 : 50;   
+                const spreadW = isOppHigh ? 18 : 12;   
+
+                drawOppBeamTrapezoid(-0.8, throwD, spreadW, oppColor, oppIntensity);
+                drawOppBeamTrapezoid(0.8, throwD, spreadW, oppColor, oppIntensity);
+                drawOppBeamTrapezoid(-0.8, throwD * 0.5, spreadW * 2.5, oppColor, oppIntensity * 0.3);
+                drawOppBeamTrapezoid(0.8, throwD * 0.5, spreadW * 2.5, oppColor, oppIntensity * 0.3);
+
+                ctx.restore();
+            }
+
+            // 4. 前方车辆渲染
+            const renderLeadCar = () => {
+                if (!state.showLeadCar) return;
+                const carZ = state.leadCarDist; 
+                if (carZ > renderDist || carZ <= nearZ) return;
+                const pCar = project(state.driverX, 0, carZ);
+                const cScale = pCar.scale; const cX = pCar.x; const cY = pCar.y;
+                const carW = 1.8 * cScale; const carH = 1.2 * cScale;
+                const tireW = 0.25 * cScale; const tireH = 0.3 * cScale; const bodyY = cY - 0.1 * cScale; 
+
+                ctx.fillStyle = '#050505'; ctx.fillRect(cX - carW/2 + 0.1*cScale, cY - tireH, tireW, tireH); ctx.fillRect(cX + carW/2 - 0.1*cScale - tireW, cY - tireH, tireW, tireH);
+                ctx.fillStyle = '#1c1e22'; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(cX - carW/2, bodyY - carH/2, carW, carH/2, 0.1*cScale); else ctx.fillRect(cX - carW/2, bodyY - carH/2, carW, carH/2); ctx.fill();
+                const cabinW = 1.3 * cScale; const cabinH = 0.55 * cScale;
+                ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(cX - cabinW/2, bodyY - carH, cabinW, cabinH, [0.3*cScale, 0.3*cScale, 0, 0]); else ctx.fillRect(cX - cabinW/2, bodyY - carH, cabinW, cabinH); ctx.fill();
+                ctx.fillStyle = '#080a0c'; ctx.fillRect(cX - cabinW/2 + 0.15*cScale, bodyY - carH + 0.1*cScale, cabinW - 0.3*cScale, cabinH - 0.2*cScale);
+                ctx.fillStyle = '#ff1a1a'; ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 8;
+                ctx.fillRect(cX - carW/2 + 0.05*cScale, bodyY - carH/2 + 0.1*cScale, 0.4*cScale, 0.15*cScale); ctx.fillRect(cX + carW/2 - 0.45*cScale, bodyY - carH/2 + 0.1*cScale, 0.4*cScale, 0.15*cScale);
+                ctx.shadowBlur = 0; 
+                ctx.fillStyle = '#dddddd'; ctx.fillRect(cX - 0.2*cScale, bodyY - carH/2 + 0.2*cScale, 0.4*cScale, 0.12*cScale);
+            };
+
+            // 如果门架比前车远，则先渲染前车
+            if (state.distance <= state.leadCarDist) renderLeadCar();
+
+            let totalTI = 0; let totalLux = 0; let totalLv = 0;
+            let activeLightHalos = [];
+
+            let oncomingOcclusionFactor = 1.0;
+            const oppDz = state.distance - state.oncoming.z;
+
+            // === 5. 渲染对向车物理车身、完美遮挡计算与高级镜头光晕 ===
+            if (state.oncoming.active && oppDz > nearZ && oppDz < renderDist) {
+                const oppHlY = (state.oncoming.type === 'truck') ? 1.2 : ((state.oncoming.type === 'suv') ? 0.9 : 0.7);
+                
+                const pOppCar = project(state.oncoming.x, 0, oppDz);
+                const cScale = pOppCar.scale; 
+                const cX = pOppCar.x; 
+                const cY = pOppCar.y;
+
+                let cw = 1.8, ch = 1.4, cabW = 1.4, cabH = 0.6;
+                if (state.oncoming.type === 'truck') { cw = 2.5; ch = 3.5; cabW = 2.5; cabH = 1.5; }
+                else if (state.oncoming.type === 'suv') { cw = 1.9; ch = 1.7; cabW = 1.5; cabH = 0.7; }
+                
+                const carW = cw * cScale;
+                const carH = ch * cScale;
+                const cabinW = cabW * cScale;
+                const cabinH = cabH * cScale;
+                const tireW = 0.25 * cScale;
+                const tireH = 0.3 * cScale;
+                
+                const bodyTop = cY - carH;
+
+                // 画车身
+                ctx.fillStyle = '#020202';
+                ctx.fillRect(cX - carW/2 + 0.1*cScale, cY - tireH, tireW, tireH);
+                ctx.fillRect(cX + carW/2 - 0.1*cScale - tireW, cY - tireH, tireW, tireH);
+                ctx.fillStyle = '#15171a';
+                ctx.fillRect(cX - carW/2, cY - carH + cabinH, carW, carH - cabinH - 0.15 * cScale);
+                ctx.beginPath();
+                if (ctx.roundRect) ctx.roundRect(cX - cabinW/2, bodyTop, cabinW, cabinH, [0.3*cScale, 0.3*cScale, 0, 0]);
+                else ctx.fillRect(cX - cabinW/2, bodyTop, cabinW, cabinH);
+                ctx.fill();
+                ctx.fillStyle = '#08090a';
+                ctx.fillRect(cX - cabinW/2 + 0.15*cScale, bodyTop + 0.1*cScale, cabinW - 0.3*cScale, cabinH - 0.2*cScale);
+                ctx.fillStyle = '#0a0a0c';
+                const grillW = (cw === 2.5) ? carW * 0.8 : carW * 0.5;
+                const grillH = (cw === 2.5) ? carH * 0.4 : carH * 0.2;
+                const grillY = cY - carH + cabinH + 0.1 * cScale;
+                ctx.fillRect(cX - grillW/2, grillY, grillW, grillH);
+                
+                if (state.oncoming.type === 'truck') {
+                    ctx.fillStyle = '#ffaa00';
+                    ctx.fillRect(cX - cabinW/2 + 0.2*cScale, bodyTop - 0.05*cScale, 0.1*cScale, 0.05*cScale);
+                    ctx.fillRect(cX + cabinW/2 - 0.3*cScale, bodyTop - 0.05*cScale, 0.1*cScale, 0.05*cScale);
+                }
+
+                // 【防眩板漏光与遮挡计算】
+                const denomX = state.driverX - state.oncoming.x;
+                const P = (state.oncoming.barrierX - state.oncoming.x) / denomX;
+                
+                if (P > 0 && P < 1) { 
+                    const intersectY = oppHlY + (state.cameraHeight - oppHlY) * P;
+                    
+                    if (intersectY < state.oncoming.barrierHeight) {
+                        let leakage = 0;
+                        if (oppDz < 150) {
+                            leakage = Math.pow((150 - oppDz) / 150, 2) * 0.25; 
+                        }
+                        const relativePos = state.distance + state.oncoming.z;
+                        const strobePhase = Math.sin(relativePos * Math.PI * 2 / state.oncoming.barrierSpacing);
+                        const flicker = strobePhase > 0 ? 1.0 : 0.05; 
+                        
+                        oncomingOcclusionFactor = leakage * flicker;
+                    } else if (intersectY < state.oncoming.barrierHeight + 0.2) {
+                        oncomingOcclusionFactor = (intersectY - state.oncoming.barrierHeight) / 0.2; 
+                    }
+                }
+
+                // 计算TI
+                const oppI = state.oncoming.hlIntensity;
+                const dx = Math.abs(state.driverX - state.oncoming.x);
+                const dy = Math.abs(state.cameraHeight - oppHlY);
+                const oppDistSq = dx*dx + dy*dy + oppDz*oppDz;
+                
+                const oppLux = (oppI / oppDistSq) * oncomingOcclusionFactor * state.windshieldTransmittance;
+                totalLux += oppLux;
+
+                const oppThetaRad = Math.atan2(Math.sqrt(dx*dx + dy*dy), oppDz);
+                const oppThetaDeg = oppThetaRad * (180 / Math.PI);
+                const oppLv = 10 * oppLux / Math.pow(Math.max(oppThetaDeg, 1.0), 2);
+                totalLv += oppLv;
+
+                const oppTI = 65 * oppLv / Math.pow(state.actual_L_avg, 0.8);
+
+                // 实体小车灯核心 (15cm)
+                const oppCenter = project(state.oncoming.x, oppHlY, oppDz);
+                const lampSpacing = (cw / 2 - 0.25) * cScale; 
+                const lampRadius = state.oncoming.hlMode === 'high' ? 0.18 * cScale : 0.12 * cScale;
+                const lampColor = state.oncoming.hlMode === 'high' ? '#ffffff' : '#fff5e6';
+                
+                ctx.fillStyle = lampColor;
+                ctx.shadowColor = state.oncoming.hlMode === 'high' ? 'rgba(200, 230, 255, 0.8)' : 'rgba(255, 230, 150, 0.8)';
+                ctx.shadowBlur = (state.oncoming.hlMode === 'high' ? 15 : 8) * oncomingOcclusionFactor * cScale;
+                
+                ctx.beginPath(); ctx.arc(oppCenter.x - lampSpacing, oppCenter.y, lampRadius, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(oppCenter.x + lampSpacing, oppCenter.y, lampRadius, 0, Math.PI*2); ctx.fill();
+                ctx.shadowBlur = 0;
+
+                // 将巨大的光晕存入队列，使用非线性衰减算法防止过度放大
+                if (oncomingOcclusionFactor > 0.01) {
+                    activeLightHalos.push({ 
+                        x: oppCenter.x - lampSpacing, y: oppCenter.y, scale: oppCenter.scale * 2.5, 
+                        localTI: oppTI / 2, opacity: oncomingOcclusionFactor, isOpponent: true 
+                    });
+                    activeLightHalos.push({ 
+                        x: oppCenter.x + lampSpacing, y: oppCenter.y, scale: oppCenter.scale * 2.5, 
+                        localTI: oppTI / 2, opacity: oncomingOcclusionFactor, isOpponent: true 
+                    });
+                }
+            }
+
+            for (let z = renderDist; z > nearZ; z -= 5) {
+                const zFar = z;
+                const zNearLocal = Math.max(nearZ, z - 5);
+                const pFarTop = project(barrierX, 0.6, zFar);
+                const pFarBot = project(barrierX, 0, zFar);
+                const pNearTop = project(barrierX, 0.6, zNearLocal);
+                const pNearBot = project(barrierX, 0, zNearLocal);
+                
+                ctx.fillStyle = '#3a3f44'; ctx.strokeStyle = '#1e2124'; ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(pFarTop.x, pFarTop.y); ctx.lineTo(pNearTop.x, pNearTop.y);
+                ctx.lineTo(pNearBot.x, pNearBot.y); ctx.lineTo(pFarBot.x, pFarBot.y);
+                ctx.closePath(); ctx.fill(); ctx.stroke();
+            }
+
+            const postInt = state.oncoming.barrierSpacing; 
+            const pOffsetZ = (state.startDistance - state.distance) % postInt;
+            for (let z = renderDist + postInt; z > 0; z -= postInt) {
+                const drawZ = z - pOffsetZ;
+                if (drawZ <= nearZ) continue; 
+                const pBase = project(barrierX, 0.6, drawZ); 
+                const pTop = project(barrierX, state.oncoming.barrierHeight, drawZ);
+                
+                ctx.strokeStyle = '#2d862d'; 
+                ctx.lineWidth = Math.max(1, 0.25 * pBase.scale); 
+                ctx.beginPath(); ctx.moveTo(pBase.x, pBase.y); ctx.lineTo(pTop.x, pTop.y); ctx.stroke();
+            }
+
+            for (let z = renderDist; z > nearZ; z -= 5) {
+                const zFar = z;
+                const zNearLocal = Math.max(nearZ, z - 5);
+                const pFarTop = project(railOffset, 0.85, zFar);
+                const pFarBot = project(railOffset, 0.55, zFar);
+                const pNearTop = project(railOffset, 0.85, zNearLocal);
+                const pNearBot = project(railOffset, 0.55, zNearLocal);
+                
+                ctx.fillStyle = '#4a5054'; ctx.strokeStyle = '#1e2124'; ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(pFarTop.x, pFarTop.y); ctx.lineTo(pNearTop.x, pNearTop.y);
+                ctx.lineTo(pNearBot.x, pNearBot.y); ctx.lineTo(pFarBot.x, pFarBot.y);
+                ctx.closePath(); ctx.fill(); ctx.stroke();
+            }
+
+            const postIntR = 4.0; 
+            const pOffsetZR = (state.startDistance - state.distance) % postIntR;
+            for (let z = renderDist + postIntR; z > 0; z -= postIntR) {
+                const drawZ = z - pOffsetZR;
+                if (drawZ <= nearZ) continue; 
+                
+                const pBase = project(railOffset + 0.2, 0, drawZ);
+                const pTop = project(railOffset + 0.2, 0.85, drawZ);
+                ctx.strokeStyle = '#181a1c'; ctx.lineWidth = Math.max(0.15 * pBase.scale, 1);
+                ctx.beginPath(); ctx.moveTo(pBase.x, pBase.y); ctx.lineTo(pTop.x, pTop.y); ctx.stroke();
+            }
+
+            state.streetLights.lamps.forEach((lamp, idx) => {
+                const slOffset = state.streetLights.firstDist + idx * state.streetLights.spacing;
+                const slCamZ = state.distance - slOffset;
+                if (slCamZ > nearZ && slCamZ < renderDist) {
+                    if (lamp.on) {
+                        const spotCenter = project(slX - 3.0, 0, slCamZ);
+                        const spotRadiusX = 15 * spotCenter.scale;
+                        const spotRadiusY = 5 * spotCenter.scale;
+
+                        ctx.globalCompositeOperation = 'screen';
+                        const grd = ctx.createRadialGradient(spotCenter.x, spotCenter.y, 0, spotCenter.x, spotCenter.y, spotRadiusX);
+                        grd.addColorStop(0, 'rgba(255, 200, 50, 0.4)');
+                        grd.addColorStop(1, 'rgba(255, 200, 50, 0)');
+                        ctx.fillStyle = grd;
+
+                        ctx.beginPath();
+                        if(ctx.ellipse) {
+                            ctx.ellipse(spotCenter.x, spotCenter.y, spotRadiusX, spotRadiusY, 0, 0, Math.PI*2);
+                        } else { 
+                            ctx.arc(spotCenter.x, spotCenter.y, spotRadiusX, 0, Math.PI*2); 
+                        }
+                        ctx.fill();
+                        ctx.globalCompositeOperation = 'source-over';
+                    }
+
+                    const pBase = project(slX, 0, slCamZ);
+                    const pTop = project(slX, state.streetLights.height, slCamZ);
+                    const pArm = project(slX - 2.0, state.streetLights.height, slCamZ);
+
+                    ctx.strokeStyle = '#555'; ctx.lineWidth = Math.max(0.5 * pBase.scale, 2);
+                    ctx.beginPath(); ctx.moveTo(pBase.x, pBase.y); ctx.lineTo(pTop.x, pTop.y); ctx.lineTo(pArm.x, pArm.y); ctx.stroke();
+
+                    ctx.fillStyle = lamp.on ? '#ffcc33' : '#222';
+                    const headSize = Math.max(0.6 * pArm.scale, 3);
+                    ctx.fillRect(pArm.x - headSize/2, pArm.y - headSize/2, headSize, headSize/2);
+
+                    if(lamp.on) {
+                        ctx.fillStyle = 'rgba(255, 200, 50, 0.8)';
+                        ctx.beginPath(); ctx.arc(pArm.x, pArm.y, headSize, 0, Math.PI*2); ctx.fill();
+                    }
+                }
+            });
+
+            // 6. 门架与门架灯光计算
+            if (state.distance > nearZ) {
+                const z = state.distance;
+                const gWidth = railOffset * 2 + 1.0;
+                const bThick = 0.8; const pWidth = 0.8;
+                
+                ctx.fillStyle = '#222';
+                [-gWidth/2, gWidth/2].forEach(gx => {
+                    const p1 = project(gx - pWidth/2, 0, z); const p2 = project(gx + pWidth/2, 0, z);
+                    const p3 = project(gx + pWidth/2, state.gantryHeight, z); const p4 = project(gx - pWidth/2, state.gantryHeight, z);
+                    ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y); ctx.fill();
+                });
+
+                ctx.fillStyle = '#2a2a2a';
+                const tl = project(-gWidth/2, state.gantryHeight, z); const tr = project(gWidth/2, state.gantryHeight, z);
+                const br = project(gWidth/2, state.gantryHeight - bThick, z); const bl = project(-gWidth/2, state.gantryHeight - bThick, z);
+                ctx.beginPath(); ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y); ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y); ctx.fill();
+
+                ctx.strokeStyle = '#444'; ctx.lineWidth = 1 * tl.scale;
+                const sections = 12;
+                for(let i=0; i<sections; i++) {
+                    const x1 = -gWidth/2 + (gWidth/sections)*i; const x2 = -gWidth/2 + (gWidth/sections)*(i+1);
+                    const px1t = project(x1, state.gantryHeight, z); const px2t = project(x2, state.gantryHeight, z);
+                    const px1b = project(x1, state.gantryHeight - bThick, z); const px2b = project(x2, state.gantryHeight - bThick, z);
+                    ctx.beginPath(); ctx.moveTo(px1t.x, px1t.y); ctx.lineTo(px2b.x, px2b.y); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(px1b.x, px1b.y); ctx.lineTo(px2t.x, px2t.y); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(px2t.x, px2t.y); ctx.lineTo(px2b.x, px2b.y); ctx.stroke(); 
+                }
+
+                const equipY = state.gantryHeight - bThick - 0.2;
+                const boxS = 0.4 * project(0,0,z).scale; 
+                
+                state.lights.forEach(light => {
+                    const actualLightX = light.x + light.offset;
+                    const lCenter = project(actualLightX, equipY, z);
+                    
+                    ctx.fillStyle = '#111';
+                    ctx.fillRect(project(actualLightX - 0.8, equipY, z).x - boxS/2, lCenter.y - boxS/2, boxS, boxS);
+                    ctx.fillRect(project(actualLightX + 0.8, equipY, z).x - boxS/2, lCenter.y - boxS/2, boxS, boxS);
+                    ctx.fillStyle = light.on && state.strobeActive ? '#eeeeee' : '#0a0a0a';
+                    ctx.fillRect(lCenter.x - boxS, lCenter.y - boxS/2, boxS*2, boxS);
+
+                    if (!light.on || state.currentPerceivedIntensityRatio === 0) return;
+
+                    const dx = actualLightX - state.driverX; 
+                    const dy = equipY - state.cameraHeight;
+                    const dz = Math.max(z, 0.1);
+                    const distSq = dx*dx + dy*dy + dz*dz;
+
+                    const lenAxis = Math.sqrt(equipY*equipY + light.aimDist*light.aimDist);
+                    const vAx = 0, vAy = -equipY/lenAxis, vAz = -light.aimDist/lenAxis; 
+                    const lenDr = Math.sqrt(distSq);
+                    const vDx = -dx/lenDr, vDy = -dy/lenDr, vDz = -dz/lenDr;
+                    
+                    const dotProd = vAx*vDx + vAy*vDy + vAz*vDz;
+                    const angleDevRad = Math.acos(Math.max(-1, Math.min(1, dotProd))); 
+
+                    const vertAngleDriver = Math.atan2(dy, dz);
+                    const vertAngleAxis = Math.atan2(equipY, light.aimDist);
+                    
+                    let sigma = vertAngleDriver < vertAngleAxis 
+                                ? (light.spread * 0.5) * (Math.PI/180) 
+                                : (light.spread * 3.0) * (Math.PI/180);
+
+                    const intensityAtten = Math.exp(-0.5 * Math.pow(angleDevRad / sigma, 2));
+                    const effectiveI = light.intensity * state.currentPerceivedIntensityRatio * intensityAtten;
+
+                    let maxUpwardAngleDeg = 11;
+                    if (state.cameraHeight <= 1.3) maxUpwardAngleDeg = 11;      
+                    else if (state.cameraHeight >= 2.0) maxUpwardAngleDeg = 26; 
+                    else maxUpwardAngleDeg = 11 + ((state.cameraHeight - 1.3) / (2.0 - 1.3)) * (26 - 11); 
+                    
+                    const elevAngleDeg = vertAngleDriver * (180 / Math.PI);
+                    let occlusionFactor = 1.0;
+                    const fadeRange = 2.0;
+                    if (elevAngleDeg > maxUpwardAngleDeg) {
+                        occlusionFactor = 0.0; 
+                    } else if (elevAngleDeg > maxUpwardAngleDeg - fadeRange) {
+                        occlusionFactor = (maxUpwardAngleDeg - elevAngleDeg) / fadeRange; 
+                    }
+                    
+                    const lux = (effectiveI / distSq) * occlusionFactor * state.windshieldTransmittance;
+                    totalLux += lux;
+
+                    const thetaRad = Math.atan2(Math.sqrt(dx*dx + dy*dy), dz);
+                    const thetaDeg = thetaRad * (180 / Math.PI);
+
+                    const Lv = 10 * lux / Math.pow(Math.max(thetaDeg, 1.0), 2);
+                    totalLv += Lv;
+
+                    const localTI = 65 * Lv / Math.pow(state.actual_L_avg, 0.8);
+                    
+                    if (occlusionFactor > 0.01) {
+                        activeLightHalos.push({ 
+                            x: lCenter.x, y: lCenter.y, scale: lCenter.scale, localTI: localTI, opacity: occlusionFactor, isOpponent: false
+                        });
+                    }
+                });
+            }
+
+            if (state.distance > state.leadCarDist) renderLeadCar();
+            
+            totalTI = 65 * totalLv / Math.pow(state.actual_L_avg, 0.8);
+
+            document.getElementById('distReadout').innerText = Math.max(0, state.distance).toFixed(1);
+            document.getElementById('actualLavgReadout').innerText = state.actual_L_avg.toFixed(2);
+            document.getElementById('luxReadout').innerText = totalLux.toFixed(2);
+            document.getElementById('tiReadout').innerText = totalTI.toFixed(1);
+            
+            const gWarn = document.getElementById('glareWarning');
+            const sStat = document.getElementById('safeStatus');
+            if (totalTI > state.tiThreshold) {
+                gWarn.style.display = 'block'; sStat.style.display = 'none';
+            } else {
+                gWarn.style.display = 'none'; sStat.style.display = 'block';
+            }
+
+            if (state.speedKmh > 40) {
+                const speedFactor = Math.min((state.speedKmh - 40) / 120, 1.0); 
+                const clearRadius = height * Math.max(0.3, 1.0 - speedFactor * 0.7); 
+                const vignetteGradient = ctx.createRadialGradient(centerX, centerY, clearRadius, centerX, centerY, height * 1.2);
+                vignetteGradient.addColorStop(0, 'rgba(0,0,0,0)');
+                vignetteGradient.addColorStop(1, `rgba(0,0,0,${speedFactor * 0.95})`);
+                ctx.fillStyle = vignetteGradient; ctx.fillRect(0, 0, width, height);
+            }
+
+            // === 图层重排 1：先画物理车体遮挡 ===
+            let maxUpwardAngleDeg = 11;
+            if (state.cameraHeight <= 1.3) maxUpwardAngleDeg = 11;
+            else if (state.cameraHeight >= 2.0) maxUpwardAngleDeg = 26;
+            else maxUpwardAngleDeg = 11 + ((state.cameraHeight - 1.3) / (2.0 - 1.3)) * (26 - 11);
+            
+            const roofVisY = centerY - focalLength * Math.tan(maxUpwardAngleDeg * Math.PI / 180);
+            const baseRY = Math.max(height * 0.05, roofVisY + 5); 
+
+            ctx.fillStyle = '#1b1d22'; ctx.strokeStyle = '#2d3138'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(width*0.1,0); ctx.lineTo(width*0.18,height); ctx.lineTo(0,height); ctx.fill(); ctx.stroke(); 
+            ctx.beginPath(); ctx.moveTo(width,0); ctx.lineTo(width*0.9,0); ctx.lineTo(width*0.82,height); ctx.lineTo(width,height); ctx.fill(); ctx.stroke(); 
+            
+            const mirrorDrop = 40;
+            ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(width,0); ctx.lineTo(width*0.9, baseRY); ctx.lineTo(width/2+60, baseRY); ctx.lineTo(width/2+45, baseRY + mirrorDrop); ctx.lineTo(width/2-45, baseRY + mirrorDrop); ctx.lineTo(width/2-60, baseRY); ctx.lineTo(width*0.1, baseRY); ctx.fill(); ctx.stroke(); 
+
+            ctx.beginPath(); ctx.moveTo(0,height); ctx.lineTo(width*0.18, height*0.82); ctx.quadraticCurveTo(width/2, height*0.78, width*0.82, height*0.82); ctx.lineTo(width,height); ctx.fill(); ctx.stroke(); 
+            ctx.strokeStyle = '#080808'; ctx.lineWidth = 8; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(width*0.25, height*0.83); ctx.lineTo(width*0.48, height*0.9); ctx.stroke(); 
+            ctx.beginPath(); ctx.moveTo(width*0.55, height*0.9); ctx.lineTo(width*0.8, height*0.85); ctx.stroke(); 
+
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            const textCenterY = baseRY / 2; 
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'; ctx.font = 'bold 16px "Segoe UI", Tahoma, sans-serif'; ctx.letterSpacing = '6px'; ctx.fillText('高速公路眩光仿真座舱', width / 2, textCenterY - 10); 
+            ctx.letterSpacing = '0px'; ctx.fillStyle = 'rgba(255, 255, 255, 0.15)'; ctx.font = '11px "Segoe UI", Tahoma, sans-serif'; ctx.fillText('交通安全与光学计量测试技术创新团队', width / 2, textCenterY + 12); 
+
+            // === 图层重排 2：连续生理视觉适应模型 ===
+            let currentTI = (totalTI > 0) ? totalTI : 0;
+            if (state.mode === 'strobe' && !state.strobeActive) currentTI = 0;
+
+            let blindingFactor = Math.min(currentTI / 80, 1.0);
+            if (blindingFactor > state.eyeAdaptation) {
+                state.eyeAdaptation += (blindingFactor - state.eyeAdaptation) * dt * 5.0;
+            } else {
+                state.eyeAdaptation -= dt * 0.25;
+            }
+            state.eyeAdaptation = Math.max(0, Math.min(1, state.eyeAdaptation));
+
+            if (state.eyeAdaptation > 0.01) {
+                if (state.mode === 'strobe' && state.strobeFreq < 60) {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${state.eyeAdaptation * 0.85})`;
+                } else {
+                    ctx.fillStyle = `rgba(5, 5, 8, ${state.eyeAdaptation * 0.95})`;
+                }
+                ctx.fillRect(0, 0, width, height);
+            }
+
+            // === 图层重排 3：眩光光晕极光引擎 (修正非线性衰减算法) ===
+            ctx.globalCompositeOperation = 'screen';
+            const maxGlareRadius = width * 1.5;
+
+            activeLightHalos.forEach(halo => {
+                const baseRadius = 0.3; 
+                const screenRadius = baseRadius * halo.scale;
+                
+                // 【核心修复】：使用 0.65 次方指数衰减压制极高TI下的半径膨胀，取代之前的线性放大
+                const glareExpansion = halo.isOpponent ? Math.pow(halo.localTI, 0.65) * 8 : halo.localTI * 4;
+                const glareRadius = Math.min(screenRadius + glareExpansion, maxGlareRadius); 
+                
+                // 将不透明度阈值拉高，防止光晕显得过度死白
+                const opacityThreshold = halo.isOpponent ? 60 : 80;
+                const glareOpacity = Math.min(halo.localTI / opacityThreshold, 1) * halo.opacity;
+
+                if (glareOpacity > 0.01 && glareRadius > 0) {
+                    const gradient = ctx.createRadialGradient(halo.x, halo.y, screenRadius, halo.x, halo.y, glareRadius);
+                    const lc = halo.isOpponent ? '230, 245, 255' : '255, 230, 150';
+                    
+                    // 【核心修复】：强化光核，极速衰减边缘。让强光只在中心刺眼，不遮挡大片屏幕
+                    gradient.addColorStop(0, `rgba(${lc}, ${glareOpacity})`);
+                    gradient.addColorStop(0.05, `rgba(${lc}, ${glareOpacity * 0.6})`);
+                    gradient.addColorStop(0.2, `rgba(${lc}, ${glareOpacity * 0.15})`);
+                    gradient.addColorStop(1, `rgba(${lc}, 0)`);
+
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath(); ctx.arc(halo.x, halo.y, glareRadius, 0, Math.PI * 2); ctx.fill();
+                    
+                    // 变形镜头光晕（Anamorphic Lens Flare），产生极其刺眼的一小块星芒核心！
+                    if (halo.isOpponent && halo.localTI > 2) {
+                        ctx.save();
+                        ctx.translate(halo.x, halo.y);
+                        
+                        // 横向拉丝
+                        const flareW = halo.scale * Math.min(halo.localTI, 100) * 3;
+                        const flareH = halo.scale * 1.0; 
+                        if (ctx.ellipse) {
+                            ctx.beginPath();
+                            ctx.ellipse(0, 0, flareW, flareH, 0, 0, Math.PI * 2);
+                            ctx.fillStyle = `rgba(255, 255, 255, ${glareOpacity * 0.8})`;
+                            ctx.fill();
+                            
+                            // 垂直星芒
+                            ctx.beginPath();
+                            ctx.ellipse(0, 0, flareH * 2, flareW * 0.4, 0, 0, Math.PI * 2);
+                            ctx.fillStyle = `rgba(255, 255, 255, ${glareOpacity * 0.3})`;
+                            ctx.fill();
+                        }
+                        
+                        // 极亮物理白点
+                        ctx.beginPath();
+                        ctx.arc(0, 0, screenRadius * 1.5, 0, Math.PI * 2);
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fill();
+                        
+                        ctx.restore();
+                    }
+                }
+            });
+            ctx.globalCompositeOperation = 'source-over'; 
+
+            requestAnimationFrame(drawLoop);
+        }
+
+        requestAnimationFrame(drawLoop);
+    </script>
+</body>
+</html>
