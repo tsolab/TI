@@ -764,7 +764,15 @@
                     const dy = state.streetLights.height;
                     const dx = slX - state.driverX;
                     const distSq = dx*dx + dy*dy + dz*dz;
-                    const E_h = state.streetLights.intensity * dy / Math.pow(distSq, 1.5);
+                    
+                    // 【物理修正：真实蝙蝠翼截光配光曲线，防止远距离照亮路面】
+                    const nadirAngleRad = Math.atan2(Math.sqrt(dx*dx + dz*dz), dy);
+                    const nadirAngleDeg = nadirAngleRad * (180 / Math.PI);
+                    let slAtten = 0;
+                    if (nadirAngleDeg < 75) slAtten = 0.8;
+                    else if (nadirAngleDeg < 85) slAtten = 0.8 * Math.pow((85 - nadirAngleDeg) / 10, 2);
+
+                    const E_h = (state.streetLights.intensity * slAtten) * dy / Math.pow(distSq, 1.5);
                     calculatedLavg += E_h * (state.roadReflectance * 3.0);
                 }
             });
@@ -783,28 +791,24 @@
             
             const nearZ = 2.0; 
 
-            // 对向路面
             ctx.fillStyle = '#161819'; ctx.beginPath();
             ctx.moveTo(project(oppRoadLeft, 0, nearZ).x, project(oppRoadLeft, 0, nearZ).y); 
             ctx.lineTo(project(oppRoadLeft, 0, renderDist).x, project(oppRoadLeft, 0, renderDist).y); 
             ctx.lineTo(project(oppRoadRight, 0, renderDist).x, project(oppRoadRight, 0, renderDist).y); 
             ctx.lineTo(project(oppRoadRight, 0, nearZ).x, project(oppRoadRight, 0, nearZ).y); ctx.fill();
 
-            // 中央绿化带底座填充
             ctx.fillStyle = '#111311'; ctx.beginPath();
             ctx.moveTo(project(oppRoadRight, 0, nearZ).x, project(oppRoadRight, 0, nearZ).y); 
             ctx.lineTo(project(oppRoadRight, 0, renderDist).x, project(oppRoadRight, 0, renderDist).y); 
             ctx.lineTo(project(-halfRoad, 0, renderDist).x, project(-halfRoad, 0, renderDist).y); 
             ctx.lineTo(project(-halfRoad, 0, nearZ).x, project(-halfRoad, 0, nearZ).y); ctx.fill();
 
-            // 本向路面
             ctx.fillStyle = '#1a1c1d'; ctx.beginPath();
             ctx.moveTo(project(-halfRoad, 0, nearZ).x, project(-halfRoad, 0, nearZ).y); 
             ctx.lineTo(project(-halfRoad, 0, renderDist).x, project(-halfRoad, 0, renderDist).y); 
             ctx.lineTo(project(halfRoad, 0, renderDist).x, project(halfRoad, 0, renderDist).y); 
             ctx.lineTo(project(halfRoad, 0, nearZ).x, project(halfRoad, 0, nearZ).y); ctx.fill();
 
-            // 各种车道实线
             ctx.strokeStyle = '#eeeeee'; ctx.lineWidth = 3;
             ctx.beginPath(); ctx.moveTo(project(halfRoad, 0, nearZ).x, project(halfRoad, 0, nearZ).y); ctx.lineTo(project(halfRoad, 0, renderDist).x, project(halfRoad, 0, renderDist).y); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(project(-halfRoad, 0, nearZ).x, project(-halfRoad, 0, nearZ).y); ctx.lineTo(project(-halfRoad, 0, renderDist).x, project(-halfRoad, 0, renderDist).y); ctx.stroke();
@@ -833,7 +837,6 @@
                 ctx.stroke();
             });
 
-            // === 渲染本车光束 ===
             if (state.headlights.mode !== 'off') {
                 const drawBeamSpot = (carDz, offsetX, w, h, color, intensity) => {
                     if (carDz <= nearZ || carDz > renderDist) return;
@@ -856,7 +859,6 @@
                 drawBeamSpot(isHigh ? 25 : 15, 0.8, isHigh ? 20 : 22, isHigh ? 30 : 20, color, alphaSpill);
             }
 
-            // === 渲染对向车光束投影 (地面铺射光晕) ===
             if (state.oncoming.active) {
                 ctx.save();
                 ctx.beginPath();
@@ -912,7 +914,6 @@
                 ctx.restore();
             }
 
-            // 4. 前方车辆渲染
             const renderLeadCar = () => {
                 if (!state.showLeadCar) return;
                 const carZ = state.leadCarDist; 
@@ -933,7 +934,6 @@
                 ctx.fillStyle = '#dddddd'; ctx.fillRect(cX - 0.2*cScale, bodyY - carH/2 + 0.2*cScale, 0.4*cScale, 0.12*cScale);
             };
 
-            // 如果门架比前车远，则先渲染前车
             if (state.distance <= state.leadCarDist) renderLeadCar();
 
             let totalTI = 0; let totalLux = 0; let totalLv = 0;
@@ -942,7 +942,6 @@
             let oncomingOcclusionFactor = 1.0;
             const oppDz = state.distance - state.oncoming.z;
 
-            // === 5. 渲染对向车物理车身、完美遮挡计算与高级镜头光晕 ===
             if (state.oncoming.active && oppDz > nearZ && oppDz < renderDist) {
                 const oppHlY = (state.oncoming.type === 'truck') ? 1.2 : ((state.oncoming.type === 'suv') ? 0.9 : 0.7);
                 
@@ -964,7 +963,6 @@
                 
                 const bodyTop = cY - carH;
 
-                // 画车身
                 ctx.fillStyle = '#020202';
                 ctx.fillRect(cX - carW/2 + 0.1*cScale, cY - tireH, tireW, tireH);
                 ctx.fillRect(cX + carW/2 - 0.1*cScale - tireW, cY - tireH, tireW, tireH);
@@ -988,7 +986,6 @@
                     ctx.fillRect(cX + cabinW/2 - 0.3*cScale, bodyTop - 0.05*cScale, 0.1*cScale, 0.05*cScale);
                 }
 
-                // 【防眩板漏光与遮挡计算】
                 const denomX = state.driverX - state.oncoming.x;
                 const P = (state.oncoming.barrierX - state.oncoming.x) / denomX;
                 
@@ -1010,7 +1007,6 @@
                     }
                 }
 
-                // 计算TI
                 const oppI = state.oncoming.hlIntensity;
                 const dx = Math.abs(state.driverX - state.oncoming.x);
                 const dy = Math.abs(state.cameraHeight - oppHlY);
@@ -1026,7 +1022,6 @@
 
                 const oppTI = 65 * oppLv / Math.pow(state.actual_L_avg, 0.8);
 
-                // 实体小车灯核心 (15cm)
                 const oppCenter = project(state.oncoming.x, oppHlY, oppDz);
                 const lampSpacing = (cw / 2 - 0.25) * cScale; 
                 const lampRadius = state.oncoming.hlMode === 'high' ? 0.18 * cScale : 0.12 * cScale;
@@ -1040,7 +1035,6 @@
                 ctx.beginPath(); ctx.arc(oppCenter.x + lampSpacing, oppCenter.y, lampRadius, 0, Math.PI*2); ctx.fill();
                 ctx.shadowBlur = 0;
 
-                // 将巨大的光晕存入队列，使用非线性衰减算法防止过度放大
                 if (oncomingOcclusionFactor > 0.01) {
                     activeLightHalos.push({ 
                         x: oppCenter.x - lampSpacing, y: oppCenter.y, scale: oppCenter.scale * 2.5, 
@@ -1106,6 +1100,7 @@
                 ctx.beginPath(); ctx.moveTo(pBase.x, pBase.y); ctx.lineTo(pTop.x, pTop.y); ctx.stroke();
             }
 
+            // === 5.5 补全路灯失能眩光引擎 ===
             state.streetLights.lamps.forEach((lamp, idx) => {
                 const slOffset = state.streetLights.firstDist + idx * state.streetLights.spacing;
                 const slCamZ = state.distance - slOffset;
@@ -1129,6 +1124,41 @@
                         }
                         ctx.fill();
                         ctx.globalCompositeOperation = 'source-over';
+                        
+                        // 【核心修正】：计算路灯直射入眼产生的眩光 TI
+                        const dx = slX - 2.0 - state.driverX; 
+                        const dy = state.streetLights.height - state.cameraHeight;
+                        const dz = slCamZ;
+                        const distSq = dx*dx + dy*dy + dz*dz;
+                        
+                        // 真实路灯蝙蝠翼截光配光曲线 (Cut-off Profile)
+                        const nadirAngleRad = Math.atan2(Math.sqrt(dx*dx + dz*dz), dy);
+                        const nadirAngleDeg = nadirAngleRad * (180 / Math.PI);
+                        let slAtten = 0;
+                        if (nadirAngleDeg < 75) {
+                            slAtten = 0.8; 
+                        } else if (nadirAngleDeg < 85) {
+                            slAtten = 0.8 * Math.pow((85 - nadirAngleDeg) / 10, 2); 
+                        }
+
+                        const effectiveI = state.streetLights.intensity * slAtten; 
+                        const lux = (effectiveI / distSq) * state.windshieldTransmittance;
+                        totalLux += lux;
+
+                        const thetaRad = Math.atan2(Math.sqrt(dx*dx + dy*dy), dz);
+                        const thetaDeg = thetaRad * (180 / Math.PI);
+                        const Lv = 10 * lux / Math.pow(Math.max(thetaDeg, 1.0), 2);
+                        totalLv += Lv; // 累加到总光幕亮度中
+
+                        // 计算局部TI，用于控制光晕动态大小
+                        const localTI = 65 * Lv / Math.pow(state.actual_L_avg, 0.8);
+                        
+                        const pArm = project(slX - 2.0, state.streetLights.height, slCamZ); 
+                        
+                        // 压入光晕队列，保留路灯标志位
+                        activeLightHalos.push({ 
+                            x: pArm.x, y: pArm.y, scale: pArm.scale, localTI: localTI, opacity: 1.0, isStreetLight: true 
+                        });
                     }
 
                     const pBase = project(slX, 0, slCamZ);
@@ -1138,6 +1168,7 @@
                     ctx.strokeStyle = '#555'; ctx.lineWidth = Math.max(0.5 * pBase.scale, 2);
                     ctx.beginPath(); ctx.moveTo(pBase.x, pBase.y); ctx.lineTo(pTop.x, pTop.y); ctx.lineTo(pArm.x, pArm.y); ctx.stroke();
 
+                    // 灯头本体
                     ctx.fillStyle = lamp.on ? '#ffcc33' : '#222';
                     const headSize = Math.max(0.6 * pArm.scale, 3);
                     ctx.fillRect(pArm.x - headSize/2, pArm.y - headSize/2, headSize, headSize/2);
@@ -1322,7 +1353,7 @@
                 ctx.fillRect(0, 0, width, height);
             }
 
-            // === 图层重排 3：眩光光晕极光引擎 (修正非线性衰减算法) ===
+            // === 图层重排 3：眩光光晕极光引擎 ===
             ctx.globalCompositeOperation = 'screen';
             const maxGlareRadius = width * 1.5;
 
@@ -1330,19 +1361,23 @@
                 const baseRadius = 0.3; 
                 const screenRadius = baseRadius * halo.scale;
                 
-                // 【核心修复】：使用 0.65 次方指数衰减压制极高TI下的半径膨胀，取代之前的线性放大
-                const glareExpansion = halo.isOpponent ? Math.pow(halo.localTI, 0.65) * 8 : halo.localTI * 4;
+                let glareExpansion = 0;
+                if (halo.isOpponent) glareExpansion = Math.pow(halo.localTI, 0.65) * 8;
+                else if (halo.isStreetLight) glareExpansion = halo.localTI * 3; // 路灯光晕收敛
+                else glareExpansion = halo.localTI * 4;
+
                 const glareRadius = Math.min(screenRadius + glareExpansion, maxGlareRadius); 
                 
-                // 将不透明度阈值拉高，防止光晕显得过度死白
-                const opacityThreshold = halo.isOpponent ? 60 : 80;
+                const opacityThreshold = halo.isOpponent ? 60 : (halo.isStreetLight ? 30 : 80);
                 const glareOpacity = Math.min(halo.localTI / opacityThreshold, 1) * halo.opacity;
 
                 if (glareOpacity > 0.01 && glareRadius > 0) {
                     const gradient = ctx.createRadialGradient(halo.x, halo.y, screenRadius, halo.x, halo.y, glareRadius);
-                    const lc = halo.isOpponent ? '230, 245, 255' : '255, 230, 150';
                     
-                    // 【核心修复】：强化光核，极速衰减边缘。让强光只在中心刺眼，不遮挡大片屏幕
+                    let lc = '255, 230, 150'; 
+                    if (halo.isOpponent) lc = '230, 245, 255'; 
+                    else if (halo.isStreetLight) lc = '255, 200, 80'; // 路灯专属琥珀色温
+                    
                     gradient.addColorStop(0, `rgba(${lc}, ${glareOpacity})`);
                     gradient.addColorStop(0.05, `rgba(${lc}, ${glareOpacity * 0.6})`);
                     gradient.addColorStop(0.2, `rgba(${lc}, ${glareOpacity * 0.15})`);
@@ -1351,12 +1386,10 @@
                     ctx.fillStyle = gradient;
                     ctx.beginPath(); ctx.arc(halo.x, halo.y, glareRadius, 0, Math.PI * 2); ctx.fill();
                     
-                    // 变形镜头光晕（Anamorphic Lens Flare），产生极其刺眼的一小块星芒核心！
                     if (halo.isOpponent && halo.localTI > 2) {
                         ctx.save();
                         ctx.translate(halo.x, halo.y);
                         
-                        // 横向拉丝
                         const flareW = halo.scale * Math.min(halo.localTI, 100) * 3;
                         const flareH = halo.scale * 1.0; 
                         if (ctx.ellipse) {
@@ -1365,14 +1398,12 @@
                             ctx.fillStyle = `rgba(255, 255, 255, ${glareOpacity * 0.8})`;
                             ctx.fill();
                             
-                            // 垂直星芒
                             ctx.beginPath();
                             ctx.ellipse(0, 0, flareH * 2, flareW * 0.4, 0, 0, Math.PI * 2);
                             ctx.fillStyle = `rgba(255, 255, 255, ${glareOpacity * 0.3})`;
                             ctx.fill();
                         }
                         
-                        // 极亮物理白点
                         ctx.beginPath();
                         ctx.arc(0, 0, screenRadius * 1.5, 0, Math.PI * 2);
                         ctx.fillStyle = '#ffffff';
